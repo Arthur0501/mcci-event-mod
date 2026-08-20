@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "mcci-event",
+	"version": "${version}",
+	"name": "mcci-event",
+	"description": "This is an example description! Tell everyone what your mod is about!",
+	"authors": [
+		"Me!"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/mcci-event/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.mccievent.McciEvent"
+		],
+		"client": [
+			"com.mccievent.client.McciEventClient"
+		]
+	},
+	"mixins": [
+		"mcci-event.mixins.json",
+		{
+			"config": "mcci-event.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~26.1.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
