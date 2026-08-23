@@ -77,13 +77,13 @@ public class McciEvent implements ModInitializer {
 
 	private static int logEvent(CommandContext<CommandSourceStack> context, String rarity, String comment) {
 		Vec3 coordinates = Vec3Argument.getVec3(context, "coordinates");
-		LOGGER.info("MCCI event command executed: coordinates={}, rarity={}, comment={}", coordinates, rarity, comment);
+		LOGGER.info("MCCI event command executed: coordinates:{}, rarity:{}, comment:{}", coordinates, rarity, comment);
 
 		CommandSourceStack source = context.getSource();
 
 		source.sendSuccess(() -> Component.literal(
-				"Stash found infos: rarity=" + rarity + ", coords=" + coordinates
-						+ (comment == null ? "" : ", comment=" + comment)
+				"Stash found infos: rarity:" + rarity + ", coords:" + coordinates
+						+ (comment == null ? "" : ", comment:" + comment)
 		), false);
 
 		sendEventToFlask(source, rarity, coordinates, comment);
@@ -120,7 +120,6 @@ public class McciEvent implements ModInitializer {
 
 	HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
 			.thenAccept(response -> {
-				LOGGER.info("Flask a répondu: {} - {}", response.statusCode(), response.body());
 
 				source.getServer().execute(() -> {
 					String messageText = null;
@@ -137,7 +136,6 @@ public class McciEvent implements ModInitializer {
 							status = obj.get("status").getAsString();
 						}
 					} catch (Exception e) {
-						// ignoré, fallback ci-dessous
 					}
 
 					if (messageText != null) {
@@ -155,7 +153,7 @@ public class McciEvent implements ModInitializer {
 			.exceptionally(ex -> {
 				LOGGER.error("Error, try to redo the command", ex);
 				source.getServer().execute(() -> source.sendFailure(
-						Component.literal("Erreur: impossible de contacter le serveur Flask")
+						Component.literal("Error: can't contact api")
 				));
 				return null;
 			});}
