@@ -21,6 +21,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Locale;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonElement;
+import net.minecraft.ChatFormatting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,48 +79,86 @@ public class McciEvent implements ModInitializer {
 		Vec3 coordinates = Vec3Argument.getVec3(context, "coordinates");
 		LOGGER.info("MCCI event command executed: coordinates={}, rarity={}, comment={}", coordinates, rarity, comment);
 
-		context.getSource().sendSuccess(() -> Component.literal(
+		CommandSourceStack source = context.getSource();
+
+		source.sendSuccess(() -> Component.literal(
 				"Stash found infos: rarity=" + rarity + ", coords=" + coordinates
 						+ (comment == null ? "" : ", comment=" + comment)
 		), false);
 
-		sendEventToFlask(rarity, coordinates, comment);
+		sendEventToFlask(source, rarity, coordinates, comment);
 
 		return 1;
 	}
-
+	private static final String API_KEY = "61ed8c056ed89e6e3b00d7c4f9a791a3d55a9a3e62e2f6174bc3107003d8fb6d";
 	private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(5))
         .build();
 
-	private static void sendEventToFlask(String rarity, Vec3 coordinates, String comment) {
+	private static String escapeJson(String value) {
+		return value.replace("\\", "\\\\")
+				.replace("\"", "\\\"")
+				.replace("\n", "\\n")
+				.replace("\r", "\\r");
+	}
+
+	private static final Gson GSON = new Gson();
+
+	private static void sendEventToFlask(CommandSourceStack source, String rarity, Vec3 coordinates, String comment) {
 		String json = String.format(
 				Locale.US,
 				"{\"rarity\":\"%s\",\"x\":%f,\"y\":%f,\"z\":%f%s}",
 				rarity, coordinates.x, coordinates.y, coordinates.z,
 				comment == null ? "" : ",\"comment\":\"" + escapeJson(comment) + "\""
 		);
-
 		HttpRequest request = HttpRequest.newBuilder()
-				.uri(URI.create("http://127.0.0.1:5000/event"))
+				.uri(URI.create("https://mcci-event.vercel.app/event"))
 				.header("Content-Type", "application/json")
+				.header("X-API-Key", API_KEY)
 				.POST(HttpRequest.BodyPublishers.ofString(json))
 				.build();
 
-		HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-				// .thenAccept(response -> LOGGER.info("Server has been recevied the response"))
-				.exceptionally(ex -> {
-					LOGGER.error("Erreur lors de l'envoi vers Flask", ex);
-					return null;
-				});
-	}
+	HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+			.thenAccept(response -> {
+				LOGGER.info("Flask a répondu: {} - {}", response.statusCode(), response.body());
 
-		private static String escapeJson(String value) {
-			return value.replace("\\", "\\\\")
-					.replace("\"", "\\\"")
-					.replace("\n", "\\n")
-					.replace("\r", "\\r");
-		}
+				source.getServer().execute(() -> {
+					String messageText = null;
+					String status = null;
+					try {
+						JsonElement root = GSON.fromJson(response.body(), JsonElement.class);
+						JsonObject obj = root.isJsonArray()
+								? root.getAsJsonArray().get(0).getAsJsonObject()
+								: root.getAsJsonObject();
+						if (obj.has("message")) {
+							messageText = obj.get("message").getAsString();
+						}
+						if (obj.has("status")) {
+							status = obj.get("status").getAsString();
+						}
+					} catch (Exception e) {
+						// ignoré, fallback ci-dessous
+					}
+
+					if (messageText != null) {
+						String finalMessage = messageText;
+						ChatFormatting color = "error".equalsIgnoreCase(status)
+								? ChatFormatting.RED
+								: ChatFormatting.GREEN;
+						source.sendSuccess(() -> Component.literal(finalMessage).withStyle(color), false);
+					} else {
+						source.sendSuccess(() -> Component.literal(
+								"Flask (" + response.statusCode() + "): " + response.body()
+						), false);
+					}
+				});})
+			.exceptionally(ex -> {
+				LOGGER.error("Error, try to redo the command", ex);
+				source.getServer().execute(() -> source.sendFailure(
+						Component.literal("Erreur: impossible de contacter le serveur Flask")
+				));
+				return null;
+			});}
 
 	private static int executeCommandWithSuggestions(CommandContext<CommandSourceStack> context) {
 		LOGGER.info("command_with_suggestions executed");
