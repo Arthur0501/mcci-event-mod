@@ -23,6 +23,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Locale;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
+import java.util.UUID;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.argument;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
@@ -84,19 +85,21 @@ public class McciEventClient implements ClientModInitializer {
 			return 0;
 		}
 
+		UUID playerUuid = source.getPlayer().getUUID();
+
 		double x = DoubleArgumentType.getDouble(context, "x");
 		double y = DoubleArgumentType.getDouble(context, "y");
 		double z = DoubleArgumentType.getDouble(context, "z");
 		Vec3 coordinates = new Vec3(x, y, z);
 
-		McciEvent.LOGGER.info("MCCI event command executed: coordinates={}, rarity={}, comment={}", coordinates, rarity, comment);
+		McciEvent.LOGGER.info("MCCI event command executed: player={}, coordinates={}, rarity={}, comment={}", playerUuid, coordinates, rarity, comment);
 
 		source.sendFeedback(Component.literal(
 				"Stash found infos: rarity=" + rarity + ", coords=" + coordinates
 						+ (comment == null ? "" : ", comment=" + comment)
 		));
 
-		sendEventToFlask(source, rarity, coordinates, comment);
+		sendEventToFlask(source, rarity, coordinates, comment, playerUuid);
 
 		return 1;
 	}
@@ -116,11 +119,11 @@ public class McciEventClient implements ClientModInitializer {
 				.replace("\r", "\\r");
 	}
 
-	private static void sendEventToFlask(FabricClientCommandSource source, String rarity, Vec3 coordinates, String comment) {
+	private static void sendEventToFlask(FabricClientCommandSource source, String rarity, Vec3 coordinates, String comment, UUID playerUuid) {
 		String json = String.format(
 				Locale.US,
-				"{\"rarity\":\"%s\",\"x\":%f,\"y\":%f,\"z\":%f%s}",
-				rarity, coordinates.x, coordinates.y, coordinates.z,
+				"{\"rarity\":\"%s\",\"x\":%f,\"y\":%f,\"z\":%f,\"player\":\"%s\"%s}",
+				rarity, coordinates.x, coordinates.y, coordinates.z, playerUuid,
 				comment == null ? "" : ",\"comment\":\"" + escapeJson(comment) + "\""
 		);
 		HttpRequest request = HttpRequest.newBuilder()
