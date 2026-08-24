@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.util.Locale;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import java.util.UUID;
+import net.minecraft.network.chat.ClickEvent;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.argument;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
@@ -138,6 +139,7 @@ public class McciEventClient implements ClientModInitializer {
 					Minecraft.getInstance().execute(() -> {
 						String messageText = null;
 						String status = null;
+						String url = null;
 						try {
 							JsonElement root = GSON.fromJson(response.body(), JsonElement.class);
 							JsonObject obj = root.isJsonArray()
@@ -149,16 +151,31 @@ public class McciEventClient implements ClientModInitializer {
 							if (obj.has("status")) {
 								status = obj.get("status").getAsString();
 							}
+							if (obj.has("url")) {
+								url = obj.get("url").getAsString();
+							}
 						} catch (Exception e) {
 							// ignoré
 						}
 
 						if (messageText != null) {
 							String finalMessage = messageText;
+							String finalUrl = url;
 							ChatFormatting color = "error".equalsIgnoreCase(status)
 									? ChatFormatting.RED
 									: ChatFormatting.GREEN;
-							source.sendFeedback(Component.literal(finalMessage).withStyle(color));
+
+							Component component = Component.literal(finalMessage).withStyle(color);
+
+							if (finalUrl != null) {
+								component = Component.literal(finalMessage)
+										.withStyle(style -> style
+												.withColor(color)
+												.withClickEvent(new ClickEvent.OpenUrl(URI.create(finalUrl)))
+												.withUnderlined(true));
+							}
+
+							source.sendFeedback(component);
 						} else {
 							source.sendFeedback(Component.literal(
 									"Flask (" + response.statusCode() + "): " + response.body()
@@ -172,5 +189,4 @@ public class McciEventClient implements ClientModInitializer {
 							source.sendError(Component.literal("Error: can't contact api")));
 					return null;
 				});
-	}
-}
+}}
